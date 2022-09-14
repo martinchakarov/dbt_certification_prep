@@ -1,0 +1,6 @@
+selectors:
+  - name: test_selector
+    description: A selector that only selects the store_customer and order nodes
+    default: false                                                                  # will relpace default selection criteria for unqualified selections if set to true
+    definition:
+      tag: raw                                                                      # same as dbt [command] --select tag:raw
