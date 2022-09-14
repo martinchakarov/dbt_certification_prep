@@ -1,0 +1,103 @@
+version: 2
+
+sources:
+  - name: shop_data                                                                         # [REQUIRED] The name of the source as it will be used in the source macro
+    database: dbt_test                                                                      # dbt will use the target database (defined in profiles.yml) if this is not defined
+    schema: raw_data                                                                        # dbt will infer that the source name matches the schema name if this is not defined                                 
+    description: All of the raw data collected about the shop.                              # documentation purposes only
+    loader: Fivetran                                                                        # the loading tool that was used (documentation purposes only)
+    loaded_at_field: _etl_loaded_date                                                       # the column that indicates the loading date of each table from the source
+    meta:                                                                                   # any meaningful metadata can be inserted here
+      contains_pii: true
+      owner: Martin
+      some_other_important_detail: write it here
+    tags: ['shop', 'raw', 'source_data', 'very_important']                                  # list of tags that can be used in selection syntax later
+
+    config:                                                                                 # additionals source configurations
+      enabled: true                                                                         # dbt will not consider it as part of the project if set to false, most useful for sources imported from packages
+    
+    # overrides:                                                                            # will override a source defined in an included package
+
+    freshness:                                                                              # run 'dbt source freshness' to check if the data is fresh
+      warn_after:                                                                           # issue a warning if data is older than 12 hours
+        count: 12
+        period: hour
+      error_after:                                                                          # throw an error if data is older than 24 hours
+        count: 24
+        period: hour
+      filter: datediff(day, _etl_loaded_date, current_timestamp) < 5                        # Apply a where clause in the freshness query / only check data from the last 5 days
+
+    quoting:                                                                                # Choose if fully qualified path will include quotes in query [change ONLY if super necessary, might wreak havoc]            
+      database: false                                                                       # If set to true: select * from "database".schema.table
+      schema: false                                                                         # If set to true: select * from database."schema".table
+      identifier: false                                                                      # If set to true: select * from database.schema."table"
+
+    tables:
+      - name: shop_customer                                                                 # [REQUIRED] the name of the table as it will be referenced in the ref() macro, needs to match the table name in the database if no identifier is specified
+        identifier: customer                                                                # in case the name specified above needs to be different from the one in the database, this one points to the original table name                                 
+        description: '{{doc("source_customer")}}'                                           # descriptions of objects can be separated into their own .md files - this one is in the /docs folder
+        loaded_at_field: test                                                               # overrides the loaded_at_field declared at source level
+        tags: ['customer_data', 'pii']
+        freshness: null                                                                     # set to null to exclude table from freshness test
+          # warn_after:                                                                     # or set up as usual to override freshness check set at source level
+          #   count: 20
+          #   period: day
+          # error_after:
+          #   count: 30
+          #   period: day
+          # filter: 1 = 1                                                                   # any WHERE condition can be inserted as a filter
+
+        quoting:                                                                            # overrides quoting conditions set at source level
+          database: false
+          schema: false
+          identifier: false
+
+        # external: <dictionary>                                                            # used for declaring properties of external tables
+
+        meta:
+          owner: John
+          contains_pii: true
+          some_other_detail: ¯\_(ツ)_/¯
+        columns:
+          - name: json                                                                      # the name of the column as it appears in the original table
+            quote: false                                                                    # the name of the column will be wrapped in quotes in the select statement if set to true -> select "json" from ...
+            description: All customers' data collected in a single JSON record.           
+            meta:
+              is_pii: false  
+
+      - name: '"ORDER"'                                                                     # this name needs to be wrapped in both single and double quotes as ORDER is a reserved word in Snowflake
+        description: '{{doc("source_order")}}'                                              # the docs block is stored in the same .md file, but it has a different macro name, so it can be referenced separately
+        columns:
+          - name: id
+            description: Unique identifier of each order.
+            data_type: 'unicorn'                                                            # This is for metadata purposes only and doesn't affect the actual data type. Therefore, 'unicorn' is a perfectly valid value.
+            quote: false
+            tags: ['unique_id', 'order_id']                                                 # Can be used to select the tests below, e.g. dbt test --select tag:unique_id
+            tests:                                                                          # Add generic tests to column
+              - unique
+              - not_null
+            meta:
+              contains_pii: false
+              is_important: true
+
+          - name: customer_id
+            description: Identifier of the customer who placed the order.
+            tests:
+              - not_null
+          - name: date
+            description: The date the order was placed on.
+            tests:
+              - not_null
+          - name: total_shipping_price
+            description: The total cost of shipping.
+      - name: order_item
+        description: Detais about each item in the shop's orders.
+        columns:
+          - name: id
+            description: The identifier of each item in each order.
+          - name: order_id
+            description: The identifier of the order the item belongs to.
+          - name: product_id
+            description: The identifier of the product the item represents.
+          - name: quantity
+            description: The number of units bought.
